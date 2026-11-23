@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest -q
+
+  build-exe:
+    # Собираем exe на каждый push: сразу видно, что сборка не сломалась.
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[gui,build]"
+      - run: python scripts/build_exe.py
+      - name: Проверка собранного exe (миграции, иконки, GUI-библиотеки внутри сборки)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\ActivityTracker.exe -ArgumentList "--self-check" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "self-check завершился с кодом $($p.ExitCode)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ActivityTracker-windows-unsigned
+          path: dist/ActivityTracker.exe

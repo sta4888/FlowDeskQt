@@ -10,11 +10,13 @@ requires-python = ">=3.10"
 dependencies = [
     "SQLAlchemy>=2.0",
     "alembic>=1.13",
-    "pynput>=1.7",
 ]
 
 [project.optional-dependencies]
+# всё, что нужно для окон, перехвата ввода и трея (заменяется при смене UI)
+gui = ["pynput>=1.7", "pystray>=0.19", "Pillow>=10"]
 dev = ["pytest>=8"]
+build = ["pyinstaller>=6"]
 
 [project.scripts]
 activity-tracker = "activity_tracker.__main__:main"
@@ -24,6 +26,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 activity_tracker = [
+    "assets/*",
     "infrastructure/db/migrations/script.py.mako",
     "infrastructure/db/migrations/versions/*.py",
 ]

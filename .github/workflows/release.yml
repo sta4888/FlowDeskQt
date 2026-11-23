@@ -1,0 +1,75 @@
+name: Release
+
+# Запуск: git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write  # создавать релиз и прикладывать файлы
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[gui,build,dev]"
+      - run: python -m pytest -q
+      - run: python scripts/build_exe.py
+
+      - name: Проверка собранного exe
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\ActivityTracker.exe -ArgumentList "--self-check" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "self-check завершился с кодом $($p.ExitCode)" }
+
+      - name: Загрузить неподписанную сборку (нужна для подписи)
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-exe
+          path: dist/ActivityTracker.exe
+
+      # Подпись включается сама, когда в репозитории задана переменная SIGNPATH_ORGANIZATION_ID
+      # (Settings → Secrets and variables → Actions). Инструкция: docs/RELEASING.md
+      - name: Подписать через SignPath
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: activity-tracker
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Подготовить файлы релиза
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          if (Test-Path signed\ActivityTracker.exe) {
+            Copy-Item signed\ActivityTracker.exe release\
+            Write-Host "Берём ПОДПИСАННУЮ сборку"
+          } else {
+            Copy-Item dist\ActivityTracker.exe release\
+            Write-Host "Подпись не настроена: релиз будет НЕПОДПИСАННЫМ"
+          }
+          $hash = (Get-FileHash release\ActivityTracker.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  ActivityTracker.exe" | Out-File -Encoding ascii release\SHA256.txt
+
+      - name: Проверка итогового файла
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath release\ActivityTracker.exe -ArgumentList "--self-check" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "итоговый exe не прошёл self-check ($($p.ExitCode))" }
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/ActivityTracker.exe
+            release/SHA256.txt
+          generate_release_notes: true

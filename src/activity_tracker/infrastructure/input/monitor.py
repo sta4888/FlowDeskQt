@@ -10,10 +10,11 @@ import threading
 from datetime import datetime
 from typing import Callable, Optional
 
+from activity_tracker.application.ports import ActivityMonitor
 from activity_tracker.domain.tracker import ActivityPeriod, ActivityTracker
 
 
-class PynputInputMonitor:
+class PynputInputMonitor(ActivityMonitor):
     def __init__(
         self,
         tracker: ActivityTracker,

@@ -1,27 +1,24 @@
-"""Окно вопроса (Tkinter). Тонкий слой: правила валидации живут в домене."""
+"""Окно вопроса после паузы (Tkinter). Правила валидации живут в домене."""
 
 from __future__ import annotations
 
 import tkinter as tk
 from tkinter import ttk
-from typing import Callable
 
 from activity_tracker.domain.errors import DomainError
 from activity_tracker.domain.model import ActivityKind
+from activity_tracker.presentation.controller import SubmitAnswer
+from activity_tracker.presentation.formatting import KIND_LABELS
 
-# (подпись, вид активности, цвет)
-KIND_BUTTONS = [
-    ("Изучил", ActivityKind.LEARNED, "#c8e6c9"),
-    ("Выполнил", ActivityKind.DONE, "#bbdefb"),
-    ("Просто гуглил", ActivityKind.BROWSING, "#ffe0b2"),
-]
-
-# project_name, kind, comment -> сохраняет или бросает DomainError
-SubmitFn = Callable[[str, ActivityKind, str], object]
+BUTTON_COLORS = {
+    ActivityKind.LEARNED: "#c8e6c9",
+    ActivityKind.DONE: "#bbdefb",
+    ActivityKind.BROWSING: "#ffe0b2",
+}
 
 
-def ask_user(root: tk.Tk, projects: list[str], submit: SubmitFn, idle_minutes: int) -> bool:
-    """Показывает модальное окно. True, если ответ принят; False, если окно закрыли."""
+def ask_question(root: tk.Tk, projects: list[str], submit: SubmitAnswer, idle_minutes: int) -> bool:
+    """Модальное окно. True, если ответ принят; False, если окно закрыли крестиком."""
     answered = {"value": False}
 
     win = tk.Toplevel(root)
@@ -49,9 +46,9 @@ def ask_user(root: tk.Tk, projects: list[str], submit: SubmitFn, idle_minutes: i
     error = tk.Label(win, text="", fg="#c62828")
     error.pack(**pad)
 
-    def choose(kind: ActivityKind) -> None:
+    def choose(label: str) -> None:
         try:
-            submit(project_box.get(), kind, comment_text.get("1.0", "end"))
+            submit(project_box.get(), label, comment_text.get("1.0", "end"))
         except DomainError as exc:
             error.config(text=str(exc))
             return
@@ -60,9 +57,10 @@ def ask_user(root: tk.Tk, projects: list[str], submit: SubmitFn, idle_minutes: i
 
     buttons = tk.Frame(win)
     buttons.pack(pady=(5, 15))
-    for label, kind, color in KIND_BUTTONS:
+    for kind, color in BUTTON_COLORS.items():
+        label = KIND_LABELS[kind]
         tk.Button(
-            buttons, text=label, width=13, bg=color, command=lambda k=kind: choose(k)
+            buttons, text=label, width=13, bg=color, command=lambda lb=label: choose(lb)
         ).pack(side="left", padx=6)
 
     win.update_idletasks()
